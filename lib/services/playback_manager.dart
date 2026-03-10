@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import '../data/models/track.dart';
 import 'audio_player_service.dart';
 import 'youtube_service.dart';
+import 'play_history_service.dart';
 
 final playbackManagerProvider = Provider<PlaybackManager>((ref) {
   final audioService = ref.read(audioPlayerServiceProvider);
@@ -15,6 +16,7 @@ final playbackManagerProvider = Provider<PlaybackManager>((ref) {
 class PlaybackManager {
   final AudioPlayerService _audioService;
   final YoutubeService _ytService;
+  final _historyService = PlayHistoryService();
 
   List<Track> _queue = [];
   int _currentIndex = 0;
@@ -81,31 +83,28 @@ class PlaybackManager {
     if (_queue.isEmpty) return;
     final track = _queue[_currentIndex];
 
+    // ✅ Registrar la reproducción para análisis de gustos
+    _historyService.record(track);
+
     if (track.localFilePath != null) {
       await _audioService.playLocal(track, track.localFilePath!);
       return;
     }
 
-    final streamInfo = await _ytService.getStreamInfo(track.youtubeId);
-    if (streamInfo == null) {
-      if (hasNext) {
-        _currentIndex++;
-        _emitCurrentTrack();
-        await _playCurrentTrack();
+    try {
+      // Reproducción instantánea mediante URL directa (Streaming HTTP)
+      final audioUrl = await _ytService.getAudioUrl(track.youtubeId);
+      if (audioUrl != null) {
+        print('[PlaybackManager] URL obtenida, iniciando streaming...');
+        await _audioService.playStream(track, audioUrl);
+      } else {
+        print('[PlaybackManager] Error: No se pudo obtener la URL del audio');
+        _playNext();
       }
-      return;
+    } catch (e) {
+      print('[PlaybackManager] Error reproduciendo canción: $e');
+      _playNext();
     }
-
-    _ytService.downloadAudioProgressive(
-      streamInfo,
-      track.youtubeId,
-      onBufferReady: (filePath) async {
-        // Solo reproducir si este track sigue siendo el actual
-        if (currentTrack?.youtubeId == track.youtubeId) {
-          await _audioService.playStream(track, filePath);
-        }
-      },
-    );
   }
 
   void dispose() {

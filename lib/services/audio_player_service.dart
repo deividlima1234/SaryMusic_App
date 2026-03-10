@@ -12,19 +12,19 @@ class AudioPlayerService {
 
   AudioPlayer get player => _player;
 
-  Future<void> playStream(Track track, String filePath) async {
+  Future<void> playStream(Track track, String url) async {
     final mediaItem = MediaItem(
       id: track.youtubeId,
-      album: 'SaryMusic Youtube Cache',
+      album: 'SaryMusic Stream',
       title: track.title,
       artist: track.artist,
       artUri:
           track.thumbnailUrl.isNotEmpty ? Uri.parse(track.thumbnailUrl) : null,
     );
 
-    // Reproducción nativa 100% confiable y compatible de archivos M4A locales
+    // Reproducción INSTANTÁNEA mediante HTTP stream
     final audioSource = AudioSource.uri(
-      Uri.file(filePath),
+      Uri.parse(url), // ¡Aquí estaba el error! Antes esperaba un archivo local
       tag: mediaItem,
     );
     await _player.setAudioSource(audioSource);

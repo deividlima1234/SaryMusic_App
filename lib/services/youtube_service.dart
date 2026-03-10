@@ -60,54 +60,10 @@ class YoutubeService {
     return audioStreams.withHighestBitrate();
   }
 
-  /// Descarga el audio progresivamente. [onBufferReady] se llama con la ruta
-  /// del archivo tan pronto como hay [bufferThresholdBytes] bytes disponibles.
-  Future<void> downloadAudioProgressive(
-    AudioOnlyStreamInfo streamInfo,
-    String videoId, {
-    required void Function(String filePath) onBufferReady,
-    int bufferThresholdBytes = 512 * 1024, // 512KB ≈ 5-10 segundos de M4A
-  }) async {
-    final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/$videoId.m4a');
-
-    print('[YoutubeService] Directorio temporal: ${tempDir.path}');
-    print('[YoutubeService] Ruta de archivo: ${file.path}');
-
-    // Cache HIT: reproducir inmediatamente
-    if (await file.exists() && await file.length() > 0) {
-      print(
-          '[YoutubeService] Cache HIT. Reproduciendo al instante. ${await file.length()} bytes');
-      onBufferReady(file.path);
-      return;
-    }
-
-    print(
-        '[YoutubeService] Cache MISS. Descarga progresiva ${streamInfo.size.totalBytes} bytes...');
-
-    // Obtener el Stream directamente de YoutubeExplode (evita bloqueos 403 de ExoPlayer)
-    final stream = _yt.videos.streamsClient.get(streamInfo);
-    final fileStream = file.openWrite();
-
-    int bytesReceived = 0;
-    bool bufferReady = false;
-    await for (final chunk in stream) {
-      fileStream.add(chunk);
-      bytesReceived += chunk.length;
-      // Notificar en cuanto hay suficiente buffer para reproducir
-      if (!bufferReady && bytesReceived >= bufferThresholdBytes) {
-        bufferReady = true;
-        await fileStream.flush();
-        print(
-            '[YoutubeService] Buffer listo ($bytesReceived bytes). Iniciando reproducción...');
-        onBufferReady(file.path);
-      }
-    }
-
-    await fileStream.flush();
-    await fileStream.close();
-    print(
-        '[YoutubeService] downloadAudioProgressive completado. $bytesReceived bytes');
+  /// Retorna la URL del stream de audio para reproducción instantánea.
+  Future<String?> getAudioUrl(String videoId) async {
+    final streamInfo = await getStreamInfo(videoId);
+    return streamInfo?.url.toString();
   }
 
   /// Descarga el audio permanentemente (para escuchar sin internet).
