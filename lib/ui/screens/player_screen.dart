@@ -2,19 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/playback_manager.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String title;
   final String artist;
   final String? thumbnailUrl;
-  final bool isPlaying;
 
   const PlayerScreen({
     super.key,
     required this.title,
     required this.artist,
     this.thumbnailUrl,
-    required this.isPlaying,
   });
 
   @override
@@ -25,6 +24,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
+  double? _draggingValue;
 
   @override
   void initState() {
@@ -32,25 +32,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    );
+    )..repeat(reverse: true);
     _breathingAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
     );
-
-    if (widget.isPlaying) {
-      _breathingController.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(PlayerScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying && !_breathingController.isAnimating) {
-      _breathingController.repeat(reverse: true);
-    } else if (!widget.isPlaying && _breathingController.isAnimating) {
-      _breathingController.stop();
-      _breathingController.animateTo(0.5); // Regresar al centro
-    }
   }
 
   @override
@@ -59,32 +44,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.dispose();
   }
 
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return "0:00";
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return "${duration.inHours > 0 ? '${duration.inHours}:' : ''}$twoDigitMinutes:$twoDigitSeconds";
+  String _formatDuration(Duration? d) {
+    if (d == null || d == Duration.zero) return "0:00";
+    String p(int n) => n.toString().padLeft(2, "0");
+    return "${d.inHours > 0 ? '${d.inHours}:' : ''}${p(d.inMinutes.remainder(60))}:${p(d.inSeconds.remainder(60))}";
   }
 
   @override
   Widget build(BuildContext context) {
     final audioService = ref.watch(audioPlayerServiceProvider);
+    final manager = ref.read(playbackManagerProvider);
 
-    return StreamBuilder<Duration?>(
-        stream: audioService.player.positionStream,
-        builder: (context, positionSnapshot) {
-          return StreamBuilder<Duration?>(
+    return StreamBuilder<bool>(
+      stream: audioService.player.playingStream,
+      builder: (context, playSnap) {
+        final isPlaying = playSnap.data ?? false;
+
+        if (isPlaying && !_breathingController.isAnimating) {
+          _breathingController.repeat(reverse: true);
+        } else if (!isPlaying && _breathingController.isAnimating) {
+          _breathingController.stop();
+        }
+
+        return StreamBuilder<Duration?>(
+          stream: audioService.player.positionStream,
+          builder: (context, posSnap) {
+            return StreamBuilder<Duration?>(
               stream: audioService.player.durationStream,
-              builder: (context, durationSnapshot) {
-                final position = positionSnapshot.data ?? Duration.zero;
-                final totalDuration = durationSnapshot.data ?? Duration.zero;
-
-                double progress = 0.0;
-                if (totalDuration.inMilliseconds > 0) {
-                  progress =
-                      position.inMilliseconds / totalDuration.inMilliseconds;
-                }
+              builder: (context, durSnap) {
+                final position = posSnap.data ?? Duration.zero;
+                final total = durSnap.data ?? Duration.zero;
+                final totalMs = total.inMilliseconds.toDouble();
+                final sliderValue = _draggingValue ??
+                    (totalMs > 0
+                        ? (position.inMilliseconds / totalMs).clamp(0.0, 1.0)
+                        : 0.0);
 
                 return Container(
                   decoration: const BoxDecoration(
@@ -97,6 +91,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Handle visual
                       Container(
                           width: 40,
                           height: 5,
@@ -105,15 +100,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               borderRadius: BorderRadius.circular(10))),
                       const SizedBox(height: 32),
 
-                      // Cover Art Respirando
+                      // Cover Art animado
                       AnimatedBuilder(
                         animation: _breathingAnimation,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: _breathingAnimation.value,
-                            child: child,
-                          );
-                        },
+                        builder: (context, child) => Transform.scale(
+                          scale: _breathingAnimation.value,
+                          child: child,
+                        ),
                         child: Container(
                           width: MediaQuery.of(context).size.width * 0.75,
                           height: MediaQuery.of(context).size.width * 0.75,
@@ -122,10 +115,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             image: widget.thumbnailUrl != null
                                 ? DecorationImage(
                                     image: NetworkImage(widget.thumbnailUrl!),
-                                    fit: BoxFit.cover,
-                                  )
+                                    fit: BoxFit.cover)
                                 : null,
-                            boxShadow: widget.isPlaying
+                            boxShadow: isPlaying
                                 ? [
                                     BoxShadow(
                                         color:
@@ -142,8 +134,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               : null,
                         ),
                       ),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 32),
 
+                      // Título y artista
                       Text(widget.title,
                           textAlign: TextAlign.center,
                           maxLines: 2,
@@ -161,63 +154,75 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               .textTheme
                               .titleLarge
                               ?.copyWith(color: AppTheme.textSecondary)),
+                      const SizedBox(height: 24),
 
-                      const SizedBox(height: 32),
-
-                      // Barra de Progreso Custom Asimétrica
-                      Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          Container(
-                              height: 4,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                  color: Colors.white12,
-                                  borderRadius: BorderRadius.circular(2))),
-                          FractionallySizedBox(
-                            widthFactor: progress.clamp(0.0, 1.0),
-                            child: Container(
-                                height: 4,
-                                decoration: BoxDecoration(
-                                    gradient: const LinearGradient(colors: [
-                                      AppTheme.primary,
-                                      Colors.redAccent
-                                    ]),
-                                    borderRadius: BorderRadius.circular(2),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                          color: AppTheme.primary,
-                                          blurRadius: 8,
-                                          spreadRadius: 1)
-                                    ])),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(_formatDuration(position),
-                              style: const TextStyle(
-                                  color: AppTheme.textSecondary, fontSize: 12)),
-                          Text(_formatDuration(totalDuration),
-                              style: const TextStyle(
-                                  color: AppTheme.textSecondary, fontSize: 12)),
-                        ],
+                      // ── SEEK SLIDER ──
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: AppTheme.primary,
+                          inactiveTrackColor: Colors.white12,
+                          thumbColor: AppTheme.primary,
+                          thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 7),
+                          overlayShape:
+                              const RoundSliderOverlayShape(overlayRadius: 18),
+                          trackHeight: 4,
+                        ),
+                        child: Slider(
+                          min: 0.0,
+                          max: 1.0,
+                          value: sliderValue,
+                          onChangeStart: (v) =>
+                              setState(() => _draggingValue = v),
+                          onChanged: (v) => setState(() => _draggingValue = v),
+                          onChangeEnd: (v) {
+                            if (totalMs > 0) {
+                              audioService.seek(Duration(
+                                  milliseconds: (v * totalMs).toInt()));
+                            }
+                            setState(() => _draggingValue = null);
+                          },
+                        ),
                       ),
 
-                      const SizedBox(height: 32),
+                      // Tiempos
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_formatDuration(position),
+                                style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12)),
+                            Text(_formatDuration(total),
+                                style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── CONTROLES ──
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
+                          // Anterior
                           IconButton(
-                              icon: const Icon(Icons.skip_previous_rounded,
-                                  size: 48, color: AppTheme.textMain),
-                              onPressed: () {}),
+                            icon: Icon(Icons.skip_previous_rounded,
+                                size: 48,
+                                color: manager.hasPrevious
+                                    ? AppTheme.textMain
+                                    : AppTheme.textSecondary),
+                            onPressed: () => manager.skipToPrevious(),
+                          ),
+
+                          // Play / Pause
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              boxShadow: widget.isPlaying
+                              boxShadow: isPlaying
                                   ? [
                                       BoxShadow(
                                           color:
@@ -229,15 +234,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                             child: IconButton(
                               icon: Icon(
-                                  widget.isPlaying
+                                  isPlaying
                                       ? Icons.pause_circle_filled
                                       : Icons.play_circle_fill,
                                   size: 80,
-                                  color: widget.isPlaying
+                                  color: isPlaying
                                       ? AppTheme.primary
                                       : AppTheme.textMain),
                               onPressed: () {
-                                if (widget.isPlaying) {
+                                if (isPlaying) {
                                   audioService.pause();
                                 } else {
                                   audioService.resume();
@@ -245,17 +250,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               },
                             ),
                           ),
+
+                          // Siguiente
                           IconButton(
-                              icon: const Icon(Icons.skip_next_rounded,
-                                  size: 48, color: AppTheme.textMain),
-                              onPressed: () {}),
+                            icon: Icon(Icons.skip_next_rounded,
+                                size: 48,
+                                color: manager.hasNext
+                                    ? AppTheme.textMain
+                                    : AppTheme.textSecondary),
+                            onPressed: () => manager.skipToNext(),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 );
-              });
-        });
+              },
+            );
+          },
+        );
+      },
+    );
   }
 }

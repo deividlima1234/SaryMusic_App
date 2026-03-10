@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/database/isar_service.dart';
 import '../../data/models/track.dart';
-import '../../services/audio_player_service.dart';
+import '../../services/playback_manager.dart';
 import '../widgets/track_tile.dart';
 
 // Provider de canciones descargadas (FutureProvider que se puede refrescar)
@@ -56,17 +56,13 @@ class LibraryScreen extends ConsumerWidget {
                           Icon(Icons.library_music_rounded,
                               size: 72, color: AppTheme.textSecondary),
                           SizedBox(height: 16),
-                          Text(
-                            'Aún no hay canciones',
-                            style: TextStyle(
-                                color: AppTheme.textSecondary, fontSize: 18),
-                          ),
+                          Text('Aún no hay canciones',
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 18)),
                           SizedBox(height: 8),
-                          Text(
-                            'Descarga pistas desde la búsqueda',
-                            style: TextStyle(
-                                color: AppTheme.textSecondary, fontSize: 13),
-                          ),
+                          Text('Descarga pistas desde la búsqueda',
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 13)),
                         ],
                       ),
                     );
@@ -86,7 +82,6 @@ class LibraryScreen extends ConsumerWidget {
                               color: Colors.white, size: 28),
                         ),
                         onDismissed: (_) async {
-                          // Borrar archivo local y registro en Isar
                           if (track.localFilePath != null) {
                             final file = File(track.localFilePath!);
                             if (await file.exists()) await file.delete();
@@ -97,21 +92,19 @@ class LibraryScreen extends ConsumerWidget {
                           ref.invalidate(downloadedTracksProvider);
 
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(
-                                      '"${track.title}" eliminada de la biblioteca')),
-                            );
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(
+                                    '"${track.title}" eliminada de la biblioteca')));
                           }
                         },
                         child: TrackTile(
                           track: track,
-                          onTap: () async {
-                            // Reproducir desde archivo local directamente
-                            final audioService =
-                                ref.read(audioPlayerServiceProvider);
-                            await audioService.playLocal(
-                                track, track.localFilePath!);
+                          onTap: () {
+                            // ✅ Usar PlaybackManager con la lista completa de biblioteca
+                            // Así el skip ⏭ navega solo por canciones descargadas
+                            ref
+                                .read(playbackManagerProvider)
+                                .setQueueAndPlay(tracks, index);
                           },
                         ),
                       );
