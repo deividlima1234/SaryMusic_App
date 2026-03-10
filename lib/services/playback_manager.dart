@@ -29,6 +29,10 @@ class PlaybackManager {
       ? _queue[_currentIndex]
       : null;
 
+  // Stream para indicar que se está extrayendo el link o haciendo buffering de red
+  final _isBufferingController = StreamController<bool>.broadcast();
+  Stream<bool> get isBufferingStream => _isBufferingController.stream;
+
   PlaybackManager(this._audioService, this._ytService) {
     _completionSub = _audioService.player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
@@ -87,11 +91,14 @@ class PlaybackManager {
     _historyService.record(track);
 
     if (track.localFilePath != null) {
+      _isBufferingController.add(false); // local es instantáneo
       await _audioService.playLocal(track, track.localFilePath!);
       return;
     }
 
     try {
+      _isBufferingController.add(true); // ⏳ Cargando URL de YouTube
+
       // Reproducción instantánea mediante URL directa (Streaming HTTP)
       final audioUrl = await _ytService.getAudioUrl(track.youtubeId);
       if (audioUrl != null) {
@@ -104,11 +111,14 @@ class PlaybackManager {
     } catch (e) {
       print('[PlaybackManager] Error reproduciendo canción: $e');
       _playNext();
+    } finally {
+      _isBufferingController.add(false); // ✅ Terminó de cargar (éxito o error)
     }
   }
 
   void dispose() {
     _completionSub?.cancel();
     _currentTrackController.close();
+    _isBufferingController.close();
   }
 }

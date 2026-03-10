@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async'; // Añadido para Completer
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -25,30 +26,43 @@ class YoutubeService {
   }
 
   Future<AudioOnlyStreamInfo?> getStreamInfo(String videoId) async {
-    // Probar cliente mweb para generar URLs accesibles desde Dart HTTP client
-    // (evita c=ANDROID que bloquea la descarga, e iOS que falla en videos con streams de video restringidos)
-    StreamManifest? manifest;
+    // 1. androidVr ha demostrado evitar el bloqueo antibot de YouTube
+
+    // 2. ios y android suelen ser buenas alternativas rápidas
     final clientsToTry = [
-      [YoutubeApiClient.mweb],
-      [YoutubeApiClient.tv],
       [YoutubeApiClient.androidVr],
+      [YoutubeApiClient.ios],
+      [YoutubeApiClient.tv],
     ];
 
+    final completer = Completer<StreamManifest>();
+    int errorsCount = 0;
+
     for (final clients in clientsToTry) {
-      try {
-        manifest = await _yt.videos.streamsClient.getManifest(
-          videoId,
-          ytClients: clients,
-        );
-        print('[YoutubeService] Manifest obtenido con cliente: $clients');
-        break;
-      } catch (e) {
+      _yt.videos.streamsClient
+          .getManifest(videoId, ytClients: clients)
+          .then((manifest) {
+        if (!completer.isCompleted) {
+          print(
+              '[YoutubeService] Manifest RÁPIDO obtenido con cliente: $clients');
+          completer.complete(manifest);
+        }
+      }).catchError((e) {
         print('[YoutubeService] Cliente $clients falló: $e');
-        continue;
-      }
+        errorsCount++;
+        if (errorsCount == clientsToTry.length && !completer.isCompleted) {
+          completer.completeError('Todos los clientes fallaron');
+        }
+      });
     }
 
-    if (manifest == null) return null;
+    StreamManifest manifest;
+    try {
+      manifest = await completer.future;
+    } catch (e) {
+      print('[YoutubeService] Error grave: $e');
+      return null;
+    }
 
     final audioStreams =
         manifest.audioOnly.where((s) => s.container.name == 'mp4');

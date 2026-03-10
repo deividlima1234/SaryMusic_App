@@ -26,6 +26,12 @@ final _recommendationItemsProvider =
 /// Chip seleccionado (label del RecommendationItem)
 final _selectedChipProvider = StateProvider<String?>((ref) => null);
 
+/// Canciones más escuchadas del historial
+final _mostPlayedProvider = FutureProvider<List<Track>>((ref) async {
+  final analyzer = TasteAnalyzer(PlayHistoryService());
+  return analyzer.getMostPlayedTracks(limit: 10);
+});
+
 /// Tracks para una query dada
 final _tracksProvider =
     FutureProvider.family<List<Track>, String>((ref, query) {
@@ -53,6 +59,8 @@ class HomeScreen extends ConsumerWidget {
             orElse: () => items.first,
           );
 
+    final mostPlayedAsync = ref.watch(_mostPlayedProvider);
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: CustomScrollView(
@@ -64,6 +72,60 @@ class HomeScreen extends ConsumerWidget {
                   ? 'Para ti: ${items.take(2).map((i) => i.label).join(' • ')}'
                   : 'Tu música, sin límites.',
             ),
+          ),
+
+          // TUS FAVORITAS (Más escuchadas)
+          mostPlayedAsync.when(
+            data: (tracks) {
+              if (tracks.isEmpty) return const SliverToBoxAdapter();
+              return SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.history_rounded,
+                              size: 18, color: AppTheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Escuchadas frecuentemente',
+                            style: GoogleFonts.orbitron(
+                              color: AppTheme.textMain,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 160,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: tracks.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 16),
+                        itemBuilder: (context, i) {
+                          return _HorizontalTrackCard(
+                            track: tracks[i],
+                            onTap: () {
+                              ref
+                                  .read(playbackManagerProvider)
+                                  .setQueueAndPlay(tracks, i);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SliverToBoxAdapter(),
+            error: (_, __) => const SliverToBoxAdapter(),
           ),
 
           // CHIPS — solo si hay historial
@@ -141,48 +203,15 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 56, 24, 8),
+      padding:
+          const EdgeInsets.fromLTRB(24, 40, 24, 8), // Reducido top de 56 a 40
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const RadialGradient(
-                      colors: [Color(0xFFFF2A2A), Color(0xFF8B0000)]),
-                  boxShadow: [
-                    BoxShadow(
-                        color: AppTheme.primary.withOpacity(0.5),
-                        blurRadius: 14,
-                        spreadRadius: 2)
-                  ],
-                ),
-                child: Center(
-                  child: Text('S',
-                      style: GoogleFonts.orbitron(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text('SARY',
-                  style: GoogleFonts.orbitron(
-                      color: AppTheme.textMain,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 4)),
-              Text('MUSIC',
-                  style: GoogleFonts.orbitron(
-                      color: AppTheme.primary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 4)),
-            ],
+          Image.asset(
+            'assets/images/sarymusic_logo.png',
+            height: 65,
+            fit: BoxFit.contain,
           ),
           const SizedBox(height: 6),
           Text(subtitle,
@@ -416,6 +445,109 @@ class _EmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HorizontalTrackCard extends ConsumerWidget {
+  final Track track;
+  final VoidCallback onTap;
+
+  const _HorizontalTrackCard({required this.track, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final manager = ref.watch(playbackManagerProvider);
+
+    return StreamBuilder<Track?>(
+      stream: manager.currentTrackStream,
+      initialData: manager.currentTrack,
+      builder: (context, snapshot) {
+        final isPlaying = snapshot.data?.youtubeId == track.youtubeId;
+
+        return StreamBuilder<bool>(
+          stream: manager.isBufferingStream,
+          initialData: false,
+          builder: (context, bufSnapshot) {
+            final isBuffering = bufSnapshot.data ?? false;
+            final imgUrl = track.thumbnailUrl.isNotEmpty
+                ? track.thumbnailUrl
+                : 'https://img.youtube.com/vi/${track.youtubeId}/mqdefault.jpg';
+
+            return GestureDetector(
+              onTap: onTap,
+              child: SizedBox(
+                width: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 120,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: AppTheme.surface,
+                        image: DecorationImage(
+                          image: NetworkImage(imgUrl),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: isPlaying
+                          ? Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: isBuffering
+                                    ? const SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: AppTheme.primary,
+                                        ),
+                                      )
+                                    : const Icon(Icons.graphic_eq_rounded,
+                                        color: AppTheme.primary, size: 36),
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: isPlaying ? AppTheme.primary : AppTheme.textMain,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      track.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSecondary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

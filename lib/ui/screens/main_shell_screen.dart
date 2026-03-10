@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/user_avatar.dart';
 
 class MainShellScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -22,18 +24,19 @@ class MainShellScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SaryMusic'),
-        actions: [
-          IconButton(
-            icon: const CircleAvatar(
-              backgroundColor: AppTheme.surface,
-              child: Icon(Icons.person, color: AppTheme.textSecondary),
-            ),
-            onPressed: () {
-              // TODO: Abrir perfil
-            },
+        backgroundColor: AppTheme.background,
+        elevation: 0,
+        title: Text(
+          'SaryMusic',
+          style: GoogleFonts.orbitron(
+            color: AppTheme.textMain,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(width: 8),
+        ),
+        actions: const [
+          UserAvatar(size: 38),
+          SizedBox(width: 16),
         ],
       ),
       body: Stack(

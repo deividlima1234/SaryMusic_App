@@ -16,6 +16,8 @@ class PlayHistoryService {
       'id': track.youtubeId,
       'title': track.title.toLowerCase(),
       'artist': track.artist.toLowerCase(),
+      'thumbnailUrl': track.thumbnailUrl,
+      'durationSeconds': track.durationSeconds,
       'ts': DateTime.now().millisecondsSinceEpoch,
     });
 

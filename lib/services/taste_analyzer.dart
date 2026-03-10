@@ -1,3 +1,4 @@
+import '../data/models/track.dart';
 import 'play_history_service.dart';
 
 /// Analiza el historial de reproducciones para generar recomendaciones
@@ -148,6 +149,38 @@ class TasteAnalyzer {
       'smooth',
     ],
   };
+
+  /// Devuelve las pistas más reproducidas (basadas en frecuencia)
+  Future<List<Track>> getMostPlayedTracks({int limit = 10}) async {
+    final history = await _history.getHistory();
+    if (history.isEmpty) return [];
+
+    final freq = <String, int>{};
+    final trackMap = <String, Track>{};
+
+    for (final e in history) {
+      final id = e['id'] as String?;
+      if (id == null) continue;
+
+      freq[id] = (freq[id] ?? 0) + 1;
+
+      if (!trackMap.containsKey(id)) {
+        trackMap[id] = Track()
+          ..youtubeId = id
+          ..title = e['title'] ?? 'Desconocido'
+          ..artist = e['artist'] ?? 'Desconocido'
+          ..thumbnailUrl = e['thumbnailUrl'] ?? ''
+          ..durationSeconds = e['durationSeconds'] ?? 0;
+      }
+    }
+
+    // Ordenar de mayor a menor frecuencia
+    final sortedIds = freq.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Mapear los ids ordenados a sus respectivos Tracks
+    return sortedIds.take(limit).map((e) => trackMap[e.key]!).toList();
+  }
 
   /// Extrae los artistas más reproducidos del historial.
   Future<List<String>> getTopArtists({int limit = 5}) async {

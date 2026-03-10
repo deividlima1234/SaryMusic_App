@@ -101,104 +101,126 @@ class TrackTile extends ConsumerWidget {
       builder: (context, snapshot) {
         final isPlaying = snapshot.data?.youtubeId == track.youtubeId;
 
-        return InkWell(
-          onTap: onTap,
-          splashColor: AppTheme.primary.withOpacity(0.2),
-          highlightColor: AppTheme.surface,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isPlaying
-                  ? AppTheme.primary.withOpacity(0.07)
-                  : Colors.transparent,
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.05),
-                  width: 1,
+        return StreamBuilder<bool>(
+          stream: ref.read(playbackManagerProvider).isBufferingStream,
+          initialData: false,
+          builder: (context, bufferingSnapshot) {
+            final isBuffering = bufferingSnapshot.data ?? false;
+
+            return InkWell(
+              onTap: onTap,
+              splashColor: AppTheme.primary.withOpacity(0.2),
+              highlightColor: AppTheme.surface,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isPlaying
+                      ? AppTheme.primary.withOpacity(0.07)
+                      : Colors.transparent,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Thumbnail / Now Playing indicator
+                    Container(
+                      width: 55,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        image: track.thumbnailUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(track.thumbnailUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                        color: AppTheme.surface,
+                      ),
+                      child: track.thumbnailUrl.isEmpty
+                          ? const Icon(Icons.music_note,
+                              color: AppTheme.textSecondary)
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Textos + Now Playing / Loading label
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isPlaying)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Row(
+                                children: [
+                                  if (isBuffering)
+                                    const SizedBox(
+                                      width: 10,
+                                      height: 10,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppTheme.primary,
+                                      ),
+                                    )
+                                  else
+                                    const _NowPlayingBars(),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    isBuffering
+                                        ? 'Cargando...'
+                                        : 'Reproduciendo',
+                                    style: TextStyle(
+                                      color: AppTheme.primary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Text(
+                            track.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: isPlaying
+                                          ? AppTheme.primary
+                                          : AppTheme.textMain,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            track.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Icono de estado de descarga
+                    SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: _buildDownloadWidget(
+                          isDownloaded, isDownloading, progress),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            child: Row(
-              children: [
-                // Thumbnail / Now Playing indicator
-                Container(
-                  width: 55,
-                  height: 55,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: track.thumbnailUrl.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(track.thumbnailUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                    color: AppTheme.surface,
-                  ),
-                  child: track.thumbnailUrl.isEmpty
-                      ? const Icon(Icons.music_note,
-                          color: AppTheme.textSecondary)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-
-                // Textos + Now Playing label
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isPlaying)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Row(
-                            children: [
-                              const _NowPlayingBars(),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Reproduciendo',
-                                style: TextStyle(
-                                  color: AppTheme.primary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      Text(
-                        track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: isPlaying
-                                  ? AppTheme.primary
-                                  : AppTheme.textMain,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // Icono de estado de descarga
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: _buildDownloadWidget(
-                      isDownloaded, isDownloading, progress),
-                ),
-              ],
-            ),
-          ),
+            );
+          },
         );
       },
     );

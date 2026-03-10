@@ -8,6 +8,7 @@ import '../screens/player_screen.dart';
 import '../providers/queue_notifier.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/playback_manager.dart';
+import '../../services/favorites_service.dart';
 
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
@@ -141,23 +142,73 @@ class MiniPlayer extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              // Play/Pause
-                              IconButton(
-                                icon: Icon(
-                                  isPlaying
-                                      ? Icons.pause_circle_filled
-                                      : Icons.play_circle_fill,
-                                  size: 36,
-                                  color: isPlaying
-                                      ? AppTheme.primary
-                                      : AppTheme.textMain,
-                                ),
-                                onPressed: () {
-                                  if (isPlaying) {
-                                    audioService.pause();
-                                  } else {
-                                    audioService.resume();
+                              // Botón Corazón (Favoritos)
+                              Consumer(builder: (ctx, ref, _) {
+                                if (currentTrack == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                final favs = ref.watch(favoritesProvider);
+                                final isFav = favs.any((t) =>
+                                    t.youtubeId == currentTrack.youtubeId);
+                                return IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: Icon(
+                                    isFav
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                    color: isFav
+                                        ? AppTheme.primary
+                                        : AppTheme.textSecondary,
+                                    size: 26,
+                                  ),
+                                  onPressed: () {
+                                    ref
+                                        .read(favoritesProvider.notifier)
+                                        .toggleFavorite(currentTrack);
+                                  },
+                                );
+                              }),
+                              // Play/Pause o Spinner de Carga
+                              StreamBuilder<bool>(
+                                stream: manager.isBufferingStream,
+                                initialData: false,
+                                builder: (context, bufferingSnapshot) {
+                                  final isBuffering =
+                                      bufferingSnapshot.data ?? false;
+
+                                  if (isBuffering) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 14.0),
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: AppTheme.primary,
+                                        ),
+                                      ),
+                                    );
                                   }
+
+                                  return IconButton(
+                                    icon: Icon(
+                                      isPlaying
+                                          ? Icons.pause_circle_filled
+                                          : Icons.play_circle_fill,
+                                      size: 36,
+                                      color: isPlaying
+                                          ? AppTheme.primary
+                                          : AppTheme.textMain,
+                                    ),
+                                    onPressed: () {
+                                      if (isPlaying) {
+                                        audioService.pause();
+                                      } else {
+                                        audioService.resume();
+                                      }
+                                    },
+                                  );
                                 },
                               ),
                               // Skip next
