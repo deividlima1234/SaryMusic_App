@@ -11,6 +11,8 @@ import '../../services/taste_analyzer.dart';
 import '../providers/download_notifier.dart';
 import 'library_screen.dart';
 import '../widgets/track_tile.dart';
+import '../widgets/update_overlay.dart';
+import '../../services/update_service.dart';
 
 // ──────────────────────────────────────────────────────────────────
 // Providers
@@ -41,11 +43,29 @@ final _tracksProvider =
 // ──────────────────────────────────────────────────────────────────
 // HomeScreen
 // ──────────────────────────────────────────────────────────────────
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkUpdate();
+  }
+
+  Future<void> _checkUpdate() async {
+    final updateInfo = await ref.read(updateServiceProvider).checkForUpdate();
+    if (mounted && updateInfo.hasUpdate) {
+      showUpdateIfNeeded(context, updateInfo);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Carga no-bloqueante: si aún no está listo devuelve []
     final items = ref.watch(_recommendationItemsProvider).asData?.value ?? [];
     final selectedChip = ref.watch(_selectedChipProvider);
@@ -63,127 +83,139 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: CustomScrollView(
-        slivers: [
-          // HEADER — siempre visible
-          SliverToBoxAdapter(
-            child: _Header(
-              subtitle: hasHistory
-                  ? 'Para ti: ${items.take(2).map((i) => i.label).join(' • ')}'
-                  : 'Tu música, sin límites.',
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(_recommendationItemsProvider);
+          ref.invalidate(_mostPlayedProvider);
+        },
+        color: AppTheme.primary,
+        backgroundColor: AppTheme.surface,
+        displacement: 40,
+        child: CustomScrollView(
+          physics:
+              const AlwaysScrollableScrollPhysics(), // Importante para que el pull-to-refresh funcione siempre
+          slivers: [
+            // HEADER — siempre visible
+            SliverToBoxAdapter(
+              child: _Header(
+                subtitle: hasHistory
+                    ? 'Para ti: ${items.take(2).map((i) => i.label).join(' • ')}'
+                    : 'Tu música, sin límites.',
+              ),
             ),
-          ),
 
-          // TUS FAVORITAS (Más escuchadas)
-          mostPlayedAsync.when(
-            data: (tracks) {
-              if (tracks.isEmpty) return const SliverToBoxAdapter();
-              return SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                      child: Row(
-                        children: [
-                          Icon(Icons.history_rounded,
-                              size: 18, color: AppTheme.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Escuchadas frecuentemente',
-                            style: GoogleFonts.orbitron(
-                              color: AppTheme.textMain,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+            // TUS FAVORITAS (Más escuchadas)
+            mostPlayedAsync.when(
+              data: (tracks) {
+                if (tracks.isEmpty) return const SliverToBoxAdapter();
+                return SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                        child: Row(
+                          children: [
+                            Icon(Icons.history_rounded,
+                                size: 18, color: AppTheme.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Escuchadas frecuentemente',
+                              style: GoogleFonts.orbitron(
+                                color: AppTheme.textMain,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      height: 160,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: tracks.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 16),
-                        itemBuilder: (context, i) {
-                          return _HorizontalTrackCard(
-                            track: tracks[i],
-                            onTap: () {
-                              ref
-                                  .read(playbackManagerProvider)
-                                  .setQueueAndPlay(tracks, i);
-                            },
-                          );
-                        },
+                      SizedBox(
+                        height: 160,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: tracks.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, i) {
+                            return _HorizontalTrackCard(
+                              track: tracks[i],
+                              onTap: () {
+                                ref
+                                    .read(playbackManagerProvider)
+                                    .setQueueAndPlay(tracks, i);
+                              },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              );
-            },
-            loading: () => const SliverToBoxAdapter(),
-            error: (_, __) => const SliverToBoxAdapter(),
-          ),
-
-          // CHIPS — solo si hay historial
-          if (hasHistory)
-            SliverToBoxAdapter(
-              child: _Chips(
-                items: items,
-                selectedLabel: activeItem?.label,
-                onSelect: (label) {
-                  final current = ref.read(_selectedChipProvider);
-                  ref.read(_selectedChipProvider.notifier).state =
-                      current == label ? null : label;
-                },
-              ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SliverToBoxAdapter(),
+              error: (_, __) => const SliverToBoxAdapter(),
             ),
 
-          // TÍTULO DE SECCIÓN
-          if (hasHistory && activeItem != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      activeItem.isArtistBased
-                          ? 'Más de ${_capitalize(activeItem.label)}'
-                          : activeItem.label,
-                      style: GoogleFonts.orbitron(
-                        color: AppTheme.textMain,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _PersonalBadge(isArtist: activeItem.isArtistBased),
-                  ],
+            // CHIPS — solo si hay historial
+            if (hasHistory)
+              SliverToBoxAdapter(
+                child: _Chips(
+                  items: items,
+                  selectedLabel: activeItem?.label,
+                  onSelect: (label) {
+                    final current = ref.read(_selectedChipProvider);
+                    ref.read(_selectedChipProvider.notifier).state =
+                        current == label ? null : label;
+                  },
                 ),
               ),
-            ),
 
-          // LISTA O ESTADO VACÍO
-          if (!hasHistory)
-            const SliverFillRemaining(child: _EmptyState())
-          else if (activeItem != null)
-            _TrackListSliver(query: activeItem.query),
+            // TÍTULO DE SECCIÓN
+            if (hasHistory && activeItem != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        activeItem.isArtistBased
+                            ? 'Más de ${_capitalize(activeItem.label)}'
+                            : activeItem.label,
+                        style: GoogleFonts.orbitron(
+                          color: AppTheme.textMain,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _PersonalBadge(isArtist: activeItem.isArtistBased),
+                    ],
+                  ),
+                ),
+              ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 90)),
-        ],
+            // LISTA O ESTADO VACÍO
+            if (!hasHistory)
+              const SliverFillRemaining(child: _EmptyState())
+            else if (activeItem != null)
+              _TrackListSliver(query: activeItem.query),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 90)),
+          ],
+        ),
       ),
     );
   }

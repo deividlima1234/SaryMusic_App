@@ -5,6 +5,7 @@ import '../../ui/screens/splash_screen.dart';
 import '../../ui/screens/onboarding_screen.dart'; // Nuevo import
 import '../../ui/screens/home_screen.dart';
 import '../../ui/screens/library_screen.dart';
+import '../../ui/screens/playlist_detail_screen.dart'; // Nuevo import
 import '../../ui/screens/main_shell_screen.dart';
 import '../../ui/screens/search_screen.dart';
 import '../../ui/screens/settings_screen.dart';
@@ -22,6 +23,13 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const OnboardingScreen(),
+    ),
+    GoRoute(
+      path: '/playlist/:id',
+      builder: (context, state) {
+        final id = int.parse(state.pathParameters['id']!);
+        return PlaylistDetailScreen(playlistId: id);
+      },
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {

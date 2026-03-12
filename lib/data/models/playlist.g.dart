@@ -27,8 +27,13 @@ const PlaylistSchema = CollectionSchema(
       name: r'description',
       type: IsarType.string,
     ),
-    r'name': PropertySchema(
+    r'isLocal': PropertySchema(
       id: 2,
+      name: r'isLocal',
+      type: IsarType.bool,
+    ),
+    r'name': PropertySchema(
+      id: 3,
       name: r'name',
       type: IsarType.string,
     )
@@ -78,7 +83,8 @@ void _playlistSerialize(
 ) {
   writer.writeDateTime(offsets[0], object.creationDate);
   writer.writeString(offsets[1], object.description);
-  writer.writeString(offsets[2], object.name);
+  writer.writeBool(offsets[2], object.isLocal);
+  writer.writeString(offsets[3], object.name);
 }
 
 Playlist _playlistDeserialize(
@@ -91,7 +97,8 @@ Playlist _playlistDeserialize(
   object.creationDate = reader.readDateTime(offsets[0]);
   object.description = reader.readStringOrNull(offsets[1]);
   object.id = id;
-  object.name = reader.readString(offsets[2]);
+  object.isLocal = reader.readBool(offsets[2]);
+  object.name = reader.readString(offsets[3]);
   return object;
 }
 
@@ -107,6 +114,8 @@ P _playlistDeserializeProp<P>(
     case 1:
       return (reader.readStringOrNull(offset)) as P;
     case 2:
+      return (reader.readBool(offset)) as P;
+    case 3:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -458,6 +467,16 @@ extension PlaylistQueryFilter
     });
   }
 
+  QueryBuilder<Playlist, Playlist, QAfterFilterCondition> isLocalEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isLocal',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Playlist, Playlist, QAfterFilterCondition> nameEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -677,6 +696,18 @@ extension PlaylistQuerySortBy on QueryBuilder<Playlist, Playlist, QSortBy> {
     });
   }
 
+  QueryBuilder<Playlist, Playlist, QAfterSortBy> sortByIsLocal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocal', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Playlist, Playlist, QAfterSortBy> sortByIsLocalDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocal', Sort.desc);
+    });
+  }
+
   QueryBuilder<Playlist, Playlist, QAfterSortBy> sortByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -728,6 +759,18 @@ extension PlaylistQuerySortThenBy
     });
   }
 
+  QueryBuilder<Playlist, Playlist, QAfterSortBy> thenByIsLocal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocal', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Playlist, Playlist, QAfterSortBy> thenByIsLocalDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isLocal', Sort.desc);
+    });
+  }
+
   QueryBuilder<Playlist, Playlist, QAfterSortBy> thenByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -756,6 +799,12 @@ extension PlaylistQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Playlist, Playlist, QDistinct> distinctByIsLocal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isLocal');
+    });
+  }
+
   QueryBuilder<Playlist, Playlist, QDistinct> distinctByName(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -781,6 +830,12 @@ extension PlaylistQueryProperty
   QueryBuilder<Playlist, String?, QQueryOperations> descriptionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'description');
+    });
+  }
+
+  QueryBuilder<Playlist, bool, QQueryOperations> isLocalProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isLocal');
     });
   }
 

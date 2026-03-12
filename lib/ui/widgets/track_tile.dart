@@ -80,12 +80,14 @@ class TrackTile extends ConsumerWidget {
   final Track track;
   final VoidCallback onTap;
   final VoidCallback? onDownload;
+  final Widget? trailing;
 
   const TrackTile({
     super.key,
     required this.track,
     required this.onTap,
     this.onDownload,
+    this.trailing,
   });
 
   @override
@@ -209,12 +211,13 @@ class TrackTile extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
 
-                    // Icono de estado de descarga
+                    // Icono de estado de descarga o widget personalizado (trailing)
                     SizedBox(
                       width: 40,
                       height: 40,
-                      child: _buildDownloadWidget(
-                          isDownloaded, isDownloading, progress),
+                      child: trailing ??
+                          _buildDownloadWidget(
+                              isDownloaded, isDownloading, progress),
                     ),
                   ],
                 ),

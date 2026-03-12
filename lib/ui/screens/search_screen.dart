@@ -195,33 +195,69 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             const SizedBox(height: 8),
 
             Expanded(
-              child: searchState.when(
-                data: (tracks) {
-                  if (tracks.isEmpty && isSearchEmpty && history.isNotEmpty) {
-                    return _buildHistory(history);
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  if (_searchController.text.trim().isNotEmpty) {
+                    await ref
+                        .read(searchProvider.notifier)
+                        .search(_searchController.text);
                   }
-                  if (tracks.isEmpty) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.satellite_alt_rounded,
-                              size: 64, color: AppTheme.textSecondary),
-                          SizedBox(height: 16),
-                          Text('Señal no identificada',
-                              style: TextStyle(
-                                  color: AppTheme.textSecondary, fontSize: 18)),
-                        ],
-                      ),
-                    );
-                  }
-                  return _buildTrackList(tracks);
                 },
-                loading: () => const Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary)),
-                error: (error, _) => Center(
-                    child: Text('Error: $error',
-                        style: const TextStyle(color: AppTheme.primary))),
+                color: AppTheme.primary,
+                backgroundColor: AppTheme.surface,
+                child: searchState.when(
+                  data: (tracks) {
+                    if (tracks.isEmpty && isSearchEmpty && history.isNotEmpty) {
+                      return _buildHistory(history);
+                    }
+                    if (tracks.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.2),
+                          const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.satellite_alt_rounded,
+                                    size: 64, color: AppTheme.textSecondary),
+                                SizedBox(height: 16),
+                                Text('Señal no identificada',
+                                    style: TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 18)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return _buildTrackList(tracks);
+                  },
+                  loading: () => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.3),
+                      const Center(
+                          child: CircularProgressIndicator(
+                              color: AppTheme.primary)),
+                    ],
+                  ),
+                  error: (error, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text('Error: $error',
+                              style: const TextStyle(color: AppTheme.primary)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
