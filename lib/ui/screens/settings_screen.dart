@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../services/user_service.dart';
@@ -50,7 +51,7 @@ class SettingsScreen extends ConsumerWidget {
             SliverList(
               delegate: SliverChildListDelegate([
                 _buildSectionHeader('CUENTA'),
-                _buildProfileCard(user),
+                _buildProfileCard(context, ref, user),
 
                 _buildSectionHeader('EXPERIENCIA DE AUDIO'),
                 _buildSettingTile(
@@ -124,7 +125,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildProfileCard(user) {
+  Widget _buildProfileCard(BuildContext context, WidgetRef ref, user) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -169,7 +170,7 @@ class SettingsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.edit_rounded,
                 color: AppTheme.textSecondary, size: 20),
-            onPressed: () {},
+            onPressed: () => _showEditNameDialog(context, ref, user.name),
           ),
         ],
       ),
@@ -232,10 +233,16 @@ class SettingsScreen extends ConsumerWidget {
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                   ),
-                  const Text(
-                    'Version V1.0.0',
-                    style:
-                        TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                  FutureBuilder<PackageInfo>(
+                    future: PackageInfo.fromPlatform(),
+                    builder: (context, snapshot) {
+                      final version = snapshot.data?.version ?? '...';
+                      return Text(
+                        'Version V$version',
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 10),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -273,6 +280,54 @@ class SettingsScreen extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
                 fontSize: 13)),
       ],
+    );
+  }
+
+  void _showEditNameDialog(
+      BuildContext context, WidgetRef ref, String currentName) {
+    final controller = TextEditingController(text: currentName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text('Editar Nombre',
+            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 16)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Tu nombre',
+            hintStyle: const TextStyle(color: Colors.white24),
+            enabledBorder: UnderlineInputBorder(
+                borderSide:
+                    BorderSide(color: AppTheme.primary.withOpacity(0.5))),
+            focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: AppTheme.primary)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty) {
+                final currentProfile = ref.read(userProfileProvider);
+                await ref
+                    .read(userProfileProvider.notifier)
+                    .saveProfile(currentProfile.copyWith(name: newName));
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('GUARDAR'),
+          ),
+        ],
+      ),
     );
   }
 
