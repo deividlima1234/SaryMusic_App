@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/user_service.dart';
 import '../../data/database/isar_service.dart';
+import 'equalizer_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -58,7 +59,10 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.equalizer_rounded,
                   title: 'Ecualizador',
                   subtitle: 'Personaliza los bajos y agudos',
-                  onTap: () {},
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EqualizerScreen()),
+                  ),
                 ),
                 _buildSettingTile(
                   icon: Icons.high_quality_rounded,
