@@ -117,7 +117,7 @@ class _UpdateOverlayState extends State<UpdateOverlay> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).padding.bottom + 90),
       decoration: BoxDecoration(
         color: AppTheme.surface.withOpacity(0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
